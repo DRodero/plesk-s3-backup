@@ -7,7 +7,7 @@
 
 set -o pipefail
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 
 SCRIPT_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2> /dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)
 
@@ -23,6 +23,8 @@ source "$SCRIPT_DIR/lib/files.sh"
 source "$SCRIPT_DIR/lib/cleanup.sh"
 # shellcheck source=lib/rotate.sh
 source "$SCRIPT_DIR/lib/rotate.sh"
+# shellcheck source=lib/report.sh
+source "$SCRIPT_DIR/lib/report.sh"
 
 usage() {
     cat << EOF
@@ -78,6 +80,9 @@ load_config() {
     : "${MAIL_FROM:=}"
     : "${MAIL_ON_SUCCESS:=yes}"
     : "${SENDMAIL:=/usr/sbin/sendmail}"
+    : "${MAIL_FORMAT:=html}"
+    : "${MAIL_ATTACH_LOG:=yes}"
+    : "${REPORT_S3_USAGE:=yes}"
     : "${S3CMD_CONFIG:=}"
     : "${MYSQL_DEFAULTS_FILE:=}"
     : "${DB_ALL_DATABASES:=yes}"
@@ -96,6 +101,7 @@ load_config() {
 
 init_run() {
     local command=$1
+    RUN_START=$(date +%s)
     RUN_DATE=$(date +%F)
     RUN_DATE_PATH=${RUN_DATE//-//}
     RUN_STAMP=$(date +%Y-%m-%d-%H.%M.%S)
@@ -156,33 +162,6 @@ cmd_run() {
     fi
 
     send_report "$files_ran"
-}
-
-send_report() {
-    local files_ran=$1 status=OK
-    (( ${#WARNINGS[@]} > 0 )) && status=WARNING
-    (( ${#ERRORS[@]} > 0 )) && status=ERROR
-    [[ $status == OK && $MAIL_ON_SUCCESS != yes ]] && return 0
-
-    local body line
-    body="Server:  $HOST
-Date:    $RUN_STAMP
-Status:  $status
-Files:   $([[ $files_ran == yes ]] && echo "backed up today" || echo "not scheduled today")
-"
-    body+=$'\nSummary:\n'
-    for line in "${REPORT[@]}"; do body+="  $line"$'\n'; done
-    if (( ${#ERRORS[@]} > 0 )); then
-        body+=$'\nErrors:\n'
-        for line in "${ERRORS[@]}"; do body+="  $line"$'\n'; done
-    fi
-    if (( ${#WARNINGS[@]} > 0 )); then
-        body+=$'\nWarnings:\n'
-        for line in "${WARNINGS[@]}"; do body+="  $line"$'\n'; done
-    fi
-    body+=$'\nFull log: '"$LOG_FILE"$'\n\n'"$(cat "$LOG_FILE")"$'\n\n'"plesk-s3-backup $VERSION"
-
-    send_mail "[backup] $status $HOST $RUN_DATE" "$body"
 }
 
 cmd_rotate() {

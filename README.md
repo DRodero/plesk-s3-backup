@@ -15,7 +15,9 @@ with **automatic rotation** of the copies kept in the bucket.
   6 months, one per month up to a year, and one per year after that.
 - **Local cleanup** of old local copies and logs.
 - **One entry point**, run once a day by a systemd timer, and **one email
-  report** per run.
+  report** per run: an HTML dashboard with the result of every database and
+  domain, the copies kept in each retention tier, the space used in S3 and
+  how long it took. The full log is attached.
 
 This project is the evolution of
 [mysql_backup](https://github.com/DRodero/mysql_backup), which only backed
@@ -172,6 +174,37 @@ The most important ones:
 | `DOMAINS_EXCLUDE` | `()` | subscriptions to skip |
 | `KEEP_*` | 60 / 180 / 365 / forever | rotation thresholds |
 | `ROTATE_DRY_RUN` | `yes` | set to `no` once you trust the plan |
+
+## Email report
+
+At the end of every `run` an email is sent to `MAIL_TO` with:
+
+- status (OK / WARNING / ERROR), duration and start time;
+- databases and domains backed up, with size, time and status of each one
+  (failures first);
+- on days without files backup, the domains protected by the last files
+  backup, and any new domain that is not in it yet;
+- copies kept in S3 per retention tier, how many were (or would be) deleted
+  and the oldest copy;
+- space used in S3;
+- errors and warnings, and the full log attached.
+
+Set `MAIL_FORMAT=text` for a plain text email, or `MAIL_ON_SUCCESS=no` to get
+it only when something goes wrong.
+
+### If the email does not arrive
+
+Gmail, Outlook and others reject mail from servers that are not
+authenticated. The report is sent with `MAIL_FROM` as envelope sender, so:
+
+1. Use an address on the server's own hostname in `MAIL_FROM`, e.g.
+   `backup@server.example.com`.
+2. Give that hostname an SPF record: `server.example.com TXT "v=spf1 a -all"`.
+3. Set the reverse DNS (PTR) of the server IP to that hostname, in your
+   hosting provider's panel.
+
+The mail log says why a message was rejected:
+`grep -i gmail /var/log/maillog` (RHEL/Alma) or `/var/log/mail.log` (Debian/Ubuntu).
 
 ## Restoring
 

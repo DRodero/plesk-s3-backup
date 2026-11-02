@@ -6,6 +6,10 @@
 # is also listed (or it is beyond KEEP_YEARLY_YEARS). An incomplete listing
 # can therefore only make the rotation keep more, never delete more.
 
+# Per type, for the report:
+# "label|dry_run|deleted|failed|daily|biweekly|monthly|yearly|recent|oldest|newest"
+ROTATION_STATS=()
+
 # rotation_plan PREFIX -> prints the retention plan for PREFIX
 rotation_plan() {
     local dates
@@ -48,6 +52,14 @@ rotate() {
             failed=$((failed + 1))
         fi
     done <<< "$plan"
+
+    local keep_lines count reasons=() r
+    keep_lines=$(grep ' keep ' <<< "$plan")
+    for r in daily biweekly monthly yearly recent; do
+        count=$(grep -c " keep $r\$" <<< "$keep_lines")
+        reasons+=("$count")
+    done
+    ROTATION_STATS+=("$label|$dry_run|$deleted|$failed|$(IFS='|'; echo "${reasons[*]}")|$(head -n1 <<< "$keep_lines" | cut -d' ' -f1)|$(tail -n1 <<< "$keep_lines" | cut -d' ' -f1)")
 
     if [[ $dry_run == yes ]]; then
         report "Rotation $label [DRY RUN]: $kept kept, $deleted would be deleted"

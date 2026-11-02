@@ -17,7 +17,10 @@ guardadas en el bucket.
   hasta los 6 meses, una al mes hasta el año y una al año a partir de ahí.
 - **Limpieza local** de copias locales y logs antiguos.
 - **Un único punto de entrada**, que lanza un timer de systemd una vez al día,
-  y **un único email de informe** por ejecución.
+  y **un único email de informe** por ejecución: un panel en HTML con el
+  resultado de cada base de datos y dominio, las copias que se conservan en
+  cada nivel de retención, el espacio ocupado en S3 y lo que ha tardado. El
+  log completo va adjunto.
 
 Este proyecto es la evolución de
 [mysql_backup](https://github.com/DRodero/mysql_backup), que solo copiaba las
@@ -193,6 +196,38 @@ comentadas. Las más importantes:
 | `DOMAINS_EXCLUDE` | `()` | suscripciones que no se copian |
 | `KEEP_*` | 60 / 180 / 365 / siempre | umbrales de la rotación |
 | `ROTATE_DRY_RUN` | `yes` | ponlo a `no` cuando te fíes del plan |
+
+## Email de informe
+
+Al final de cada `run` se envía un email a `MAIL_TO` con:
+
+- estado (OK / WARNING / ERROR), duración y hora de inicio;
+- bases de datos y dominios copiados, con tamaño, tiempo y estado de cada uno
+  (los fallos primero);
+- los días sin copia de ficheros, los dominios protegidos por la última copia
+  de ficheros y los dominios nuevos que aún no están en ella;
+- copias que se conservan en S3 por nivel de retención, cuántas se han
+  borrado (o se borrarían) y la copia más antigua;
+- espacio ocupado en S3;
+- errores y avisos, y el log completo adjunto.
+
+Pon `MAIL_FORMAT=text` para recibirlo en texto plano, o `MAIL_ON_SUCCESS=no`
+para recibirlo solo cuando algo falle.
+
+### Si no llega el email
+
+Gmail, Outlook y otros rechazan el correo de servidores no autenticados. El
+informe se envía con `MAIL_FROM` como remitente del sobre, así que:
+
+1. Usa en `MAIL_FROM` una dirección del propio hostname del servidor, por
+   ejemplo `backup@servidor.ejemplo.com`.
+2. Crea un registro SPF para ese hostname:
+   `servidor.ejemplo.com TXT "v=spf1 a -all"`.
+3. Configura el DNS inverso (PTR) de la IP del servidor con ese hostname, en
+   el panel de tu proveedor.
+
+El log de correo dice por qué se rechazó un mensaje:
+`grep -i gmail /var/log/maillog` (RHEL/Alma) o `/var/log/mail.log` (Debian/Ubuntu).
 
 ## Restaurar
 

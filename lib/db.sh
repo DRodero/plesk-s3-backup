@@ -4,6 +4,7 @@
 
 DB_OK=0
 DB_FAILED=0
+DB_RESULTS=()     # "name|status|bytes|seconds" per database (status: ok, failed)
 MYSQL_AUTH=()
 
 # Credentials: an explicit defaults file, or the Plesk admin password.
@@ -31,6 +32,7 @@ dump_database() {
     shift
     local dir="$LOCAL_DB_DIR/$name"
     local file="$dir/${name}_${RUN_STAMP}.sql.gz"
+    local start=$SECONDS
     mkdir -p "$dir"
 
     mysqldump "${MYSQL_AUTH[@]}" "${MYSQLDUMP_OPTS[@]}" "$@" 2>> "$LOG_FILE" | gzip > "$file"
@@ -41,14 +43,19 @@ dump_database() {
         mv -f "$file" "$file.failed"
         log_error "DB $name: dump failed (mysqldump exit ${rc[0]}, gzip exit ${rc[1]})"
         DB_FAILED=$((DB_FAILED + 1))
+        DB_RESULTS+=("$name|failed|0|$((SECONDS - start))")
         return 1
     fi
 
-    log "DB $name: OK $(du -h "$file" | cut -f1)"
+    local bytes
+    bytes=$(file_size "$file")
+    log "DB $name: OK $(human_size "$bytes")"
     if s3_upload "$file" "$S3_DB_PREFIX/$RUN_DATE_PATH/$name/"; then
         DB_OK=$((DB_OK + 1))
+        DB_RESULTS+=("$name|ok|$bytes|$((SECONDS - start))")
     else
         DB_FAILED=$((DB_FAILED + 1))
+        DB_RESULTS+=("$name|failed|$bytes|$((SECONDS - start))")
     fi
 }
 

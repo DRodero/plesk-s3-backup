@@ -4,6 +4,7 @@
 
 FILES_OK=0
 FILES_FAILED=0
+FILES_RESULTS=()  # "domain|status|bytes|seconds" (status: ok, warning, failed)
 
 # Directories in the vhosts root that are not subscriptions
 VHOSTS_SYSTEM_DIRS=(system default chroot fs fs-passwd .skel)
@@ -28,6 +29,7 @@ list_domains() {
 backup_domain() {
     local domain=$1
     local file="$LOCAL_FILES_DIR/${RUN_STAMP}-files-${domain}.tar.gz"
+    local start=$SECONDS status=ok
 
     if [[ ! -d $VHOSTS_DIR/$domain ]]; then
         log_warn "files $domain: $VHOSTS_DIR/$domain does not exist, skipped"
@@ -46,19 +48,25 @@ backup_domain() {
     # still valid, so it is only a warning.
     if (( rc == 1 )); then
         log_warn "files $domain: some files changed while being archived"
+        status=warning
     elif (( rc != 0 )); then
         mv -f "$file" "$file.failed" 2> /dev/null
         log_error "files $domain: tar failed (exit $rc)"
         FILES_FAILED=$((FILES_FAILED + 1))
+        FILES_RESULTS+=("$domain|failed|0|$((SECONDS - start))")
         return 1
     fi
 
-    log "files $domain: OK $(du -h "$file" | cut -f1)"
+    local bytes
+    bytes=$(file_size "$file")
+    log "files $domain: OK $(human_size "$bytes")"
     if s3_upload "$file" "$S3_FILES_PREFIX/$RUN_DATE_PATH/$domain/"; then
         FILES_OK=$((FILES_OK + 1))
     else
         FILES_FAILED=$((FILES_FAILED + 1))
+        status=failed
     fi
+    FILES_RESULTS+=("$domain|$status|$bytes|$((SECONDS - start))")
 }
 
 # backup_files [DOMAIN...]  (no arguments = every domain)

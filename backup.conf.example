@@ -26,8 +26,14 @@ STATE_DIR="/var/lib/plesk-s3-backup"
 # ---------------------------------------------------------------------------
 # Email report (sent at the end of every `run`)
 MAIL_TO="you@example.com"
-MAIL_FROM="Backup my-server <admin@my-server.example.com>"
+# Also used as envelope sender: use an address of the server's own hostname
+# and give that hostname an SPF record and reverse DNS, or Gmail and others
+# may reject the report.
+MAIL_FROM="Backup my-server <backup@my-server.example.com>"
 MAIL_ON_SUCCESS=yes          # no = only when there are errors or warnings
+MAIL_FORMAT=html             # html = dashboard (plus plain text), text = plain text only
+MAIL_ATTACH_LOG=yes          # attach the full log of the run
+REPORT_S3_USAGE=yes          # show the space used in S3 (one extra listing per type)
 
 # ---------------------------------------------------------------------------
 # Databases (every day)
