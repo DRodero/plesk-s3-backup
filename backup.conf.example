@@ -1,0 +1,72 @@
+# shellcheck shell=bash disable=SC2034
+# plesk-s3-backup configuration.
+# Copy to /etc/plesk-s3-backup/backup.conf and keep it readable by root only
+# (chmod 600): it may point to credentials.
+
+# ---------------------------------------------------------------------------
+# S3
+# Backups are stored as  <PREFIX>/YYYY/MM/DD/<database or domain>/<file>
+S3_DB_PREFIX="s3://my-bucket/my-server/BD"
+S3_FILES_PREFIX="s3://my-bucket/my-server/Files"
+
+# s3cmd configuration file (empty = ~/.s3cfg of the user running the backup)
+S3CMD_CONFIG=""
+# Extra s3cmd options, e.g. (--storage-class=STANDARD_IA)
+S3CMD_OPTS=()
+
+# ---------------------------------------------------------------------------
+# Local copies and logs
+LOCAL_DB_DIR="/var/backups/plesk-s3-backup/db"
+LOCAL_FILES_DIR="/var/backups/plesk-s3-backup/files"
+LOCAL_KEEP_DAYS=2            # local copies older than this are removed
+LOG_DIR="/var/log/plesk-s3-backup"
+LOG_KEEP_DAYS=30
+STATE_DIR="/var/lib/plesk-s3-backup"
+
+# ---------------------------------------------------------------------------
+# Email report (sent at the end of every `run`)
+MAIL_TO="you@example.com"
+MAIL_FROM="Backup my-server <admin@my-server.example.com>"
+MAIL_ON_SUCCESS=yes          # no = only when there are errors or warnings
+
+# ---------------------------------------------------------------------------
+# Databases (every day)
+
+# MySQL client options file with [client] user/password. Leave empty to use
+# the Plesk administrator account (/etc/psa/.psa.shadow).
+MYSQL_DEFAULTS_FILE=""
+DB_EXCLUDE=(information_schema performance_schema mysql sys)
+DB_ALL_DATABASES=yes         # also one extra dump of all databases together
+MYSQLDUMP_OPTS=(--single-transaction --quick --routines --events --triggers)
+
+# ---------------------------------------------------------------------------
+# Files (one tar.gz per Plesk subscription in VHOSTS_DIR)
+
+FILES_WEEKDAYS="7"           # days of the week: 1=Monday ... 7=Sunday, e.g. "3 7"
+DOMAINS="auto"               # auto = every Plesk subscription; or "a.com b.com"
+DOMAINS_EXCLUDE=()           # e.g. (old-site.com test.example.com)
+VHOSTS_DIR="/var/www/vhosts"
+TAR_EXCLUDE=()               # e.g. ("*/wp-content/cache" "*/node_modules")
+
+# ---------------------------------------------------------------------------
+# S3 rotation (applied every day to databases and files)
+#
+#   up to KEEP_DAILY_UNTIL days      every backup
+#   up to KEEP_BIWEEKLY_UNTIL days   one every half month
+#   up to KEEP_MONTHLY_UNTIL days    one per month
+#   older                            one per year, for KEEP_YEARLY_YEARS years
+KEEP_DAILY_UNTIL=60
+KEEP_BIWEEKLY_UNTIL=180
+KEEP_MONTHLY_UNTIL=365
+KEEP_YEARLY_YEARS=0          # 0 = keep yearly backups forever
+KEEP_MIN_RECENT=7            # never delete the N most recent backups
+
+# Start with "yes": the rotation only reports what it would delete. Review
+# the daily emails (or `backup.sh list`) and switch to "no" when happy.
+ROTATE_DRY_RUN=yes
+
+# ---------------------------------------------------------------------------
+# Extra local cleanup: "directory:days" (files older than days are removed)
+EXTRA_CLEANUP=(
+    # "/var/lib/psa/dumps:5"
+)

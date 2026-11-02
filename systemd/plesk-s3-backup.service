@@ -1,0 +1,14 @@
+[Unit]
+Description=Plesk backup to S3 with rotation
+Documentation=https://github.com/DRodero/plesk-s3-backup
+Wants=network-online.target
+After=network-online.target mariadb.service mysql.service mysqld.service
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=@INSTALL_DIR@/backup.sh run
+# Be gentle with the websites while the backup runs
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
