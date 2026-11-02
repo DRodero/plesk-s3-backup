@@ -153,6 +153,7 @@ plesk-s3-backup [--config FILE] [--dry-run] COMMAND
   rotate [db|files]   apply the retention policy in S3
   list [db|files]     show which backups are kept or would be deleted, and why
   check               check configuration, dependencies, MySQL and S3
+  test-mail [ADDRESS] send a test email and check the sender's SPF and reverse DNS
 ```
 
 `run` does, in this order: retry uploads that failed on previous days,
@@ -193,6 +194,16 @@ Set `MAIL_FORMAT=text` for a plain text email, or `MAIL_ON_SUCCESS=no` to get
 it only when something goes wrong.
 
 ### If the email does not arrive
+
+Send a test email without running a backup:
+
+```bash
+plesk-s3-backup test-mail                    # to MAIL_TO
+plesk-s3-backup test-mail you@example.com    # to another address
+```
+
+It checks the SPF record and reverse DNS of the `MAIL_FROM` domain, sends the
+message and shows what the mail log says about it.
 
 Gmail, Outlook and others reject mail from servers that are not
 authenticated. The report is sent with `MAIL_FROM` as envelope sender, so:

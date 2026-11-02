@@ -382,3 +382,66 @@ send_report() {
     log "Sending report to $MAIL_TO"
     send_mail "$subject" "$text" "$html" "$attachment"
 }
+
+# ---------------------------------------------------------------------------
+# Test email (`backup.sh test-mail`): a short message sent the same way as
+# the report (plain text + HTML, log attached), to check delivery.
+
+test_mail_rows() {
+    local envelope="sendmail default"
+    [[ -n ${MAIL_FROM:-} ]] && envelope=$(mail_address "$MAIL_FROM")
+    printf '%s\t%s\n' \
+        To "$MAIL_TO" \
+        From "${MAIL_FROM:-sendmail default}" \
+        "Envelope sender" "$envelope" \
+        "Mail command" "$SENDMAIL" \
+        Sent "$(date '+%Y-%m-%d %H:%M:%S %Z')"
+}
+
+test_mail_text() {
+    echo "Test email from plesk-s3-backup $VERSION on $HOST."
+    echo
+    echo "If you can read this, the daily backup report will arrive too."
+    echo
+    test_mail_rows | awk -F '\t' '{ printf "  %-16s %s\n", $1 ":", $2 }'
+}
+
+test_mail_html() {
+    local key value
+    cat << EOF
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light"><title>Test email</title></head>
+<body style="margin:0;padding:0;background:$C_BG;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:$C_TEXT;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:$C_BG;"><tr><td align="center" style="padding:24px 12px;">
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width:680px;background:#ffffff;border:1px solid $C_BORDER;border-radius:12px;">
+<tr><td style="padding:22px 24px 4px;">
+<table width="100%" cellpadding="0" cellspacing="0"><tr>
+<td><div style="font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:$C_MUTED;">Test email</div>
+<div style="font-size:20px;font-weight:700;color:$C_TEXT;margin-top:2px;">$(html_escape "$HOST")</div></td>
+<td align="right" valign="top">$(badge TEST info)</td>
+</tr></table>
+<div style="font-size:14px;color:$C_TEXT;margin-top:14px;">If you can read this, the daily backup report will arrive too.</div>
+</td></tr>
+<tr><td style="padding:12px 24px 0;"><table width="100%" cellpadding="0" cellspacing="0">
+EOF
+    while IFS=$'\t' read -r key value; do
+        printf '<tr><td style="%swhite-space:nowrap;color:%s;">%s</td><td style="%sword-break:break-all;">%s</td></tr>\n' \
+            "$TD" "$C_MUTED" "$(html_escape "$key")" "$TD" "$(html_escape "$value")"
+    done < <(test_mail_rows)
+    cat << EOF
+</table></td></tr>
+<tr><td style="padding:22px 24px;font-size:12px;color:$C_MUTED;">
+<a href="https://github.com/DRodero/plesk-s3-backup" style="color:$C_MUTED;">plesk-s3-backup</a> $VERSION
+</td></tr>
+</table></td></tr></table>
+</body></html>
+EOF
+}
+
+send_test_mail() {
+    local html="" attachment=""
+    [[ $MAIL_FORMAT == html ]] && html=$(test_mail_html)
+    [[ $MAIL_ATTACH_LOG == yes ]] && attachment=$LOG_FILE
+    send_mail "[backup] TEST $HOST" "$(test_mail_text)" "$html" "$attachment"
+}

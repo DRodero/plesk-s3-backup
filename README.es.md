@@ -174,6 +174,8 @@ plesk-s3-backup [--config FICHERO] [--dry-run] COMANDO
   rotate [db|files]   aplica la política de retención en S3
   list [db|files]     muestra qué copias se conservan o se borrarían, y por qué
   check               comprueba configuración, dependencias, MySQL y S3
+  test-mail [DIRECCIÓN] envía un email de prueba y comprueba el SPF y el DNS
+                      inverso del remitente
 ```
 
 `run` hace, en este orden: reintentar las subidas que fallaron otros días,
@@ -215,6 +217,16 @@ Pon `MAIL_FORMAT=text` para recibirlo en texto plano, o `MAIL_ON_SUCCESS=no`
 para recibirlo solo cuando algo falle.
 
 ### Si no llega el email
+
+Envía un email de prueba sin hacer ninguna copia:
+
+```bash
+plesk-s3-backup test-mail                    # a MAIL_TO
+plesk-s3-backup test-mail tu@ejemplo.com     # a otra dirección
+```
+
+Comprueba el registro SPF y el DNS inverso del dominio de `MAIL_FROM`, envía
+el mensaje y muestra lo que dice el log de correo sobre él.
 
 Gmail, Outlook y otros rechazan el correo de servidores no autenticados. El
 informe se envía con `MAIL_FROM` como remitente del sobre, así que:

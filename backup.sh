@@ -7,7 +7,7 @@
 
 set -o pipefail
 
-VERSION="1.1.0"
+VERSION="1.2.0"
 
 SCRIPT_DIR=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2> /dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)
 
@@ -42,6 +42,8 @@ Commands:
   rotate [db|files]   Apply the retention policy in S3 (both by default)
   list [db|files]     Show which S3 backups are kept or would be deleted
   check               Check configuration, dependencies, MySQL and S3 access
+  test-mail [ADDRESS] Send a test email (to MAIL_TO or ADDRESS) and check
+                        the sender's SPF and reverse DNS
   version             Show the version
 
 Options:
@@ -262,6 +264,83 @@ cmd_check() {
     [[ $ok == yes ]]
 }
 
+# Checks what receiving servers look at: SPF of the sender domain, that it
+# points to this server, and that the reverse DNS of that IP matches.
+check_mail_dns() {
+    local address domain spf ips ip ptr local_ips
+    address=$(mail_address "${MAIL_FROM:-}")
+    domain=$(tr '[:upper:]' '[:lower:]' <<< "${address#*@}")
+
+    echo "DNS of the sender domain:"
+    if [[ -z ${MAIL_FROM:-} || $address != *@* ]]; then
+        echo "  [WARN] MAIL_FROM is not set, the sender address is chosen by sendmail"
+        return
+    fi
+    if ! command -v dig > /dev/null; then
+        echo "  [SKIP] dig not found (package bind-utils or dnsutils)"
+        return
+    fi
+
+    spf=$(dig +short TXT "$domain" | tr -d '"' | grep '^v=spf1')
+    if [[ -n $spf ]]; then
+        echo "  [OK]   SPF of $domain: $spf"
+    else
+        echo "  [WARN] no SPF record for $domain, add:  $domain TXT \"v=spf1 a -all\""
+    fi
+
+    ips=$(dig +short A "$domain" | grep -E '^[0-9.]+$')
+    if [[ -z $ips ]]; then
+        echo "  [WARN] $domain has no A record, use a hostname of this server in MAIL_FROM"
+        return
+    fi
+    local_ips=$(hostname -I 2> /dev/null)
+    for ip in $ips; do
+        if [[ -n $local_ips ]] && ! in_list "$ip" $local_ips; then
+            echo "  [WARN] $domain points to $ip, which is not an address of this server"
+        else
+            echo "  [OK]   $domain points to $ip"
+        fi
+        ptr=$(dig +short -x "$ip" | head -n 1 | tr '[:upper:]' '[:lower:]')
+        ptr=${ptr%.}
+        if [[ $ptr == "$domain" ]]; then
+            echo "  [OK]   reverse DNS of $ip: $ptr"
+        else
+            echo "  [WARN] reverse DNS of $ip is '${ptr:-none}', set it to $domain in your provider's panel"
+        fi
+    done
+}
+
+# Shows what the local mail server did with the message to the first
+# recipient (delivery happens in the background, a few seconds later).
+show_mail_log() {
+    local rcpt file
+    rcpt=$(mail_address "${MAIL_TO%%,*}")
+    rcpt=${rcpt// /}
+    for file in /var/log/maillog /var/log/mail.log; do
+        [[ -r $file ]] || continue
+        echo "Waiting 15 seconds for the delivery..."
+        sleep 15
+        echo "Last deliveries to $rcpt in $file:"
+        grep -F "to=<$rcpt>" "$file" | tail -n 3 | sed 's/^/  /'
+        echo "status=sent means the receiving server accepted it (look in the spam folder too);"
+        echo "bounced or deferred is followed by the reason."
+        return
+    done
+    echo "Check the mail log (/var/log/maillog or /var/log/mail.log) to see if it was accepted."
+}
+
+cmd_test_mail() {
+    [[ -n ${1:-} ]] && MAIL_TO=$1
+    [[ -n $MAIL_TO ]] || die "MAIL_TO is not set in $CONFIG_FILE"
+
+    check_mail_dns
+    local warnings=${#WARNINGS[@]}
+    log "Sending test email to $MAIL_TO"
+    send_test_mail
+    (( ${#WARNINGS[@]} == warnings )) || return 1
+    show_mail_log
+}
+
 # ---------------------------------------------------------------------------
 # Main
 
@@ -284,7 +363,7 @@ main() {
     shift
 
     case $command in
-        run | db | files | cleanup | rotate | list | check) ;;
+        run | db | files | cleanup | rotate | list | check | test-mail) ;;
         *) echo "Unknown command: $command" >&2; usage >&2; exit 2 ;;
     esac
 
@@ -300,6 +379,7 @@ main() {
         rotate) cmd_rotate "$@" ;;
         list) cmd_list "$@" ;;
         check) cmd_check ;;
+        test-mail) cmd_test_mail "$@" ;;
     esac
     local rc=$?
 
