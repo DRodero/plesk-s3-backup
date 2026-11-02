@@ -17,6 +17,11 @@ with **automatic rotation** of the copies kept in the bucket.
 - **One entry point**, run once a day by a systemd timer, and **one email
   report** per run.
 
+This project is the evolution of
+[mysql_backup](https://github.com/DRodero/mysql_backup), which only backed
+up the databases. It keeps its dump check and email report, and adds file
+backups, S3 rotation and a systemd installer.
+
 ## How the rotation works
 
 Every backup run is stored under a date folder:

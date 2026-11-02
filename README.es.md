@@ -19,6 +19,12 @@ guardadas en el bucket.
 - **Un único punto de entrada**, que lanza un timer de systemd una vez al día,
   y **un único email de informe** por ejecución.
 
+Este proyecto es la evolución de
+[mysql_backup](https://github.com/DRodero/mysql_backup), que solo copiaba las
+bases de datos. Mantiene su comprobación de los volcados y el informe por
+email, y añade la copia de ficheros, la rotación en S3 y un instalador con
+systemd.
+
 ## Cómo funciona la rotación
 
 Cada ejecución se guarda bajo una carpeta con la fecha:
